@@ -12,7 +12,8 @@ const THEME_POOLS={
 "Postres":["🍰","🧁","🍪","🍩","🍫","🍬","🍭","🍮","🍦","🍨","🍧","🎂","🥧","🍡","🍢","🍯","🧇","🥞","🧋","☕","🍿","🍓","🍒","🍌","🍮","🍭","🍧","🍫","🥛","🍥"],
 "Espacio":["🌍","🪐","🚀","🌌","☄️","🌕","⭐","🌟","🌙","☀️","🛰️","👽","🛸","🌠","🌑","🌎","🌏","🌞","🌚","🌝","🌛","🌜","🌘","🌗","🌖","🌔","🌒","💫","✨","🪨"]
 };
-const normSymbol=s=>String(s??"").normalize("NFC").replace(/\uFE0F/g,"");\nfunction hand(center,pool=SYMBOLS){const common=center[Math.floor(Math.random()*center.length)],rest=shuffle(pool.filter(s=>!center.includes(s)));return shuffle([common,...rest.slice(0,7)])}
+const normSymbol=s=>String(s??"").normalize("NFC").replace(/\uFE0F/g,"");
+function hand(center,pool=SYMBOLS){const common=center[Math.floor(Math.random()*center.length)],rest=shuffle(pool.filter(s=>!center.includes(s)));return shuffle([common,...rest.slice(0,7)])}
 function state(r,viewerId){return {code:r.code,status:r.status,hostId:r.hostId,maxPlayers:r.maxPlayers,theme:r.theme,visibility:r.visibility,timeLimitSeconds:r.timeLimitSeconds||0,remainingSeconds:r.remainingSeconds??null,showOpponentCards:r.showOpponentCards!==false,showOpponentCounts:r.showOpponentCounts!==false,chat:r.chat||[],players:[...r.players.values()].map(p=>({...p,hand:(p.id===viewerId||r.showOpponentCards!==false)?p.hand:[]})),center:r.center,remaining:r.remaining}}
 function broadcast(r){for(const id of r.players.keys())io.to(id).emit("state",state(r,id));updatePublicRooms()}
 function updatePublicRooms(){io.emit("publicRooms",[...rooms.values()].filter(r=>r.visibility==="public"&&r.status!=="finished").map(r=>({code:r.code,status:r.status,theme:r.theme,maxPlayers:r.maxPlayers,players:[...r.players.values()].filter(p=>p.role!=="spectator").length})).sort((a,b)=>(a.status==="lobby"?0:1)-(b.status==="lobby"?0:1)))}
