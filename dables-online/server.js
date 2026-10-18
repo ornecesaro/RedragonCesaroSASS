@@ -14,7 +14,26 @@ const THEME_POOLS={
 };
 const normSymbol=s=>String(s??"").normalize("NFC").replace(/\uFE0F/g,"");
 const uniqueSymbols=items=>[...new Map(items.map(s=>[normSymbol(s),s])).values()];
-function hand(center,pool=SYMBOLS){const safeCenter=uniqueSymbols(center),safePool=uniqueSymbols(pool),common=safeCenter[Math.floor(Math.random()*safeCenter.length)],rest=shuffle(safePool.filter(s=>!safeCenter.some(c=>normSymbol(c)===normSymbol(s))));return shuffle([common,...rest.slice(0,7)])}
+const THEME_EXTRAS={
+"Animalitos":["🐼","🦁","🐯","🐵","🐰","🦄","🐙","🦖","🐬","🦈"],
+"Naturaleza":["🌱","🌳","🌺","🌸","🌊","🌪️","🌋","🏔️","🌿","🍁"],
+"Tecnología":["🖨️","📷","📺","🔋","💾","💿","📡","🛰️","🕹️","🔌"],
+"Frutas y verduras":["🍎","🍐","🍊","🍇","🥝","🥑","🍅","🌽","🥔","🧄"],
+"Postres":["🍰","🧁","🍪","🍩","🍫","🍬","🍭","🍮","🍦","🍨","🍧","🎂"],
+"Espacio":["🌟","🌙","☀️","🛰️","👽","🛸","🌠","🌑","🌎","🌏"]
+};
+function themeSymbols(theme){const base=uniqueSymbols(THEME_POOLS[theme]||SYMBOLS),extras=uniqueSymbols([...(THEME_EXTRAS[theme]||[]),...SYMBOLS]);return uniqueSymbols([...base,...extras]).slice(0,31)}
+function projectiveDeck(symbols){
+ const pts=Array.from({length:31},(_,i)=>i),cards=[];
+ cards.push(pts.slice(25,31).map(i=>symbols[i]));
+ for(let m=0;m<5;m++)for(let b=0;b<5;b++){
+  const ids=[];for(let x=0;x<5;x++){const y=(m*x+b)%5;ids.push(y*5+x)}
+  ids.push(25+m);cards.push(ids.map(i=>symbols[i]));
+ }
+ for(let b=0;b<5;b++){const ids=[];for(let y=0;y<5;y++)ids.push(y*5+b);ids.push(30);cards.push(ids.map(i=>symbols[i]))}
+ return shuffle(cards);
+}
+function drawCard(r){if(!r.deck||!r.deck.length)return [...r.center];if(r.deckIndex>=r.deck.length){r.deck=shuffle(r.deck);r.deckIndex=0}return [...r.deck[r.deckIndex++]]}
 function state(r,viewerId){return {code:r.code,status:r.status,hostId:r.hostId,maxPlayers:r.maxPlayers,theme:r.theme,visibility:r.visibility,timeLimitSeconds:r.timeLimitSeconds||0,remainingSeconds:r.remainingSeconds??null,showOpponentCards:r.showOpponentCards!==false,showOpponentCounts:r.showOpponentCounts!==false,chat:r.chat||[],players:[...r.players.values()].map(p=>({...p,hand:(p.id===viewerId||r.showOpponentCards!==false)?p.hand:[]})),center:r.center,remaining:r.remaining}}
 function broadcast(r){for(const id of r.players.keys())io.to(id).emit("state",state(r,id));updatePublicRooms()}
 function updatePublicRooms(){io.emit("publicRooms",[...rooms.values()].filter(r=>r.visibility==="public"&&r.status!=="finished").map(r=>({code:r.code,status:r.status,theme:r.theme,maxPlayers:r.maxPlayers,players:[...r.players.values()].filter(p=>p.role!=="spectator").length})).sort((a,b)=>(a.status==="lobby"?0:1)-(b.status==="lobby"?0:1)))}
@@ -32,8 +51,8 @@ s.on("ready",value=>{const r=rooms.get(s.data.room),p=r?.players.get(s.id);if(!r
 s.on("settings",d=>{const r=rooms.get(s.data.room);if(!r||s.id!==r.hostId||r.status!=="lobby")return;const actual=[...r.players.values()].filter(p=>p.role!=="spectator").length;r.maxPlayers=Math.max(actual,Math.min(6,Math.max(2,Number(d.maxPlayers)||6)));r.theme=THEME_POOLS[d.theme]?d.theme:r.theme;r.visibility=d.visibility==="private"?"private":"public";r.showOpponentCards=d.showOpponentCards!==false;r.showOpponentCounts=d.showOpponentCounts!==false;const tl=Number(d.timeLimitSeconds);r.timeLimitSeconds=[0,30,60,180,300,600].includes(tl)?tl:0;broadcast(r)});
 s.on("kick",id=>{const r=rooms.get(s.data.room);if(!r||s.id!==r.hostId||r.status!=="lobby"||id===r.hostId)return;const p=r.players.get(id);if(!p||p.role==="spectator")return;const target=io.sockets.sockets.get(id);if(target){notice(target,"El anfitrión te expulsó de la sala.");target.leave(r.code);target.data.room=null;target.emit("kicked","El anfitrión te expulsó de la sala.");}r.players.delete(id);broadcast(r)});
 s.on("returnLobby",()=>{const r=rooms.get(s.data.room);if(!r||s.id!==r.hostId||r.status!=="finished")return;r.status="lobby";r.result=null;r.remainingSeconds=null;for(const p of r.players.values()){if(p.role==="player")p.ready=false;p.cards=0;p.errors=0;p.streak=0;p.maxStreak=0;p.hand=[]}io.to(r.code).emit("returnedLobby");broadcast(r)});
-s.on("start",()=>{const r=rooms.get(s.data.room);if(!r||s.id!==r.hostId||!(r.status==="lobby"||r.status==="finished"))return;const ps=[...r.players.values()].filter(p=>p.role!=="spectator");if(ps.length<2)return notice(s,"Necesitás al menos dos jugadores.");const notReady=ps.filter(p=>p.id!==r.hostId&&!p.ready);if(notReady.length)return notice(s,"Todavía faltan jugadores por marcarse listos: "+notReady.map(p=>p.name).join(", ")+".");r.status="playing";const pool=uniqueSymbols(THEME_POOLS[r.theme]||SYMBOLS);r.center=shuffle(pool).slice(0,8);for(const p of ps){p.cards=10;p.errors=0;p.streak=0;p.maxStreak=0;p.hand=hand(r.center,pool)}if(r.timer)clearInterval(r.timer);r.remainingSeconds=r.timeLimitSeconds||null;if(r.timeLimitSeconds>0)r.timer=setInterval(()=>{if(r.status!=="playing"){clearInterval(r.timer);return}r.remainingSeconds=Math.max(0,(r.remainingSeconds||0)-1);if(r.remainingSeconds<=0)finish(r,"Se terminó el tiempo.");else broadcast(r)},1000);broadcast(r)});
-s.on("play",sym=>{const r=rooms.get(s.data.room),p=r?.players.get(s.id);if(!r||r.status!=="playing"||!p||p.role==="spectator")return;const pool=[...new Set(THEME_POOLS[r.theme]||SYMBOLS)];const clicked=normSymbol(sym),matches=p.hand.filter(x=>r.center.some(c=>normSymbol(c)===normSymbol(x)));const isInHand=p.hand.some(x=>normSymbol(x)===clicked);if(!isInHand)return;const isCorrect=matches.length===1&&normSymbol(matches[0])===clicked&&r.center.some(x=>normSymbol(x)===clicked);if(!isCorrect){p.errors++;p.cards++;p.streak=0;broadcast(r);return}p.cards=Math.max(0,p.cards-1);p.streak++;p.maxStreak=Math.max(p.maxStreak,p.streak);r.center=[...p.hand];if(!p.cards){finish(r,p.name+" ganó.");return}p.hand=hand(r.center,pool);broadcast(r)});
+s.on("start",()=>{const r=rooms.get(s.data.room);if(!r||s.id!==r.hostId||!(r.status==="lobby"||r.status==="finished"))return;const ps=[...r.players.values()].filter(p=>p.role!=="spectator");if(ps.length<2)return notice(s,"Necesitás al menos dos jugadores.");const notReady=ps.filter(p=>p.id!==r.hostId&&!p.ready);if(notReady.length)return notice(s,"Todavía faltan jugadores por marcarse listos: "+notReady.map(p=>p.name).join(", ")+".");r.status="playing";const symbols=themeSymbols(r.theme);r.deck=projectiveDeck(symbols);r.deckIndex=0;r.center=drawCard(r);for(const p of ps){p.cards=10;p.errors=0;p.streak=0;p.maxStreak=0;p.hand=drawCard(r)}if(r.timer)clearInterval(r.timer);r.remainingSeconds=r.timeLimitSeconds||null;if(r.timeLimitSeconds>0)r.timer=setInterval(()=>{if(r.status!=="playing"){clearInterval(r.timer);return}r.remainingSeconds=Math.max(0,(r.remainingSeconds||0)-1);if(r.remainingSeconds<=0)finish(r,"Se terminó el tiempo.");else broadcast(r)},1000);broadcast(r)});
+s.on("play",sym=>{const r=rooms.get(s.data.room),p=r?.players.get(s.id);if(!r||r.status!=="playing"||!p||p.role==="spectator")return;const clicked=normSymbol(sym),matches=p.hand.filter(x=>r.center.some(c=>normSymbol(c)===normSymbol(x)));const isInHand=p.hand.some(x=>normSymbol(x)===clicked);if(!isInHand)return;const isCorrect=matches.length===1&&normSymbol(matches[0])===clicked&&r.center.some(x=>normSymbol(x)===clicked);if(!isCorrect){p.errors++;p.cards++;p.streak=0;broadcast(r);return}p.cards=Math.max(0,p.cards-1);p.streak++;p.maxStreak=Math.max(p.maxStreak,p.streak);r.center=[...p.hand];if(!p.cards){finish(r,p.name+" ganó.");return}p.hand=drawCard(r);broadcast(r)});
 s.on("leave",()=>leave(s));s.on("disconnect",()=>leave(s))
 });
 httpServer.listen(process.env.PORT||3000,"0.0.0.0",()=>console.log("Dables Online listo"));
