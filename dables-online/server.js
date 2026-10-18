@@ -1,7 +1,7 @@
 const express=require("express"),http=require("http"),{Server}=require("socket.io"),crypto=require("crypto"),path=require("path");
 const app=express(),httpServer=http.createServer(app),io=new Server(httpServer);
 app.use(express.static(path.join(__dirname,"public")));app.get("/health",(_,r)=>r.json({ok:true,game:"Dables"}));
-const rooms=new Map(),MAX=6,SYMBOLS=["⭐","🌙","☀️","🌈","⚡","❄️","🔥","🍀","👑","🎈","🎯","🎲","🧩","🎧","⌨️","🖱️","💻","📱","🎮","🔊","🎙️","🍓","🍌","🍍","🍋","🍒","🥦","🥕","🍉","🐱","🐶","🦊","🐸","🦋","🐝","🐢","🐧","🌍","🪐","🚀","🌌","☄️","🌕","🌲","🌻","🍄","☂️","🔑","💎","🧸","🪁","🎨","🎸","🎹","🥁","🏀","⚽"];
+const rooms=new Map(),MAX=6,SYMBOLS=["⭐","🌙","☀️","🌈","⚡","❄️","🔥","🍀","👑","🎈","🎯","🎲","🧩","🎧","⌨️","🖱️","💻","📱","🎮","🔊","🎙️","🍓","🍌","🍍","🍋","🍒","🥦","🥕","🍉","🐱","🐶","🦊","🐸","🦋","🐝","🐢","🐧","🌍","🪐","🚀","🌌","☄️","🌕","🌲","🌻","🍄","☂️","🔑","💎","🧸","🪁","🎨","🎸","🎹","🥁","🏀","⚽","🪄","🧿","🪬","🪷","🪻","🪺","🪹","🪵","🪨","🪸","🪼","🪿","🪽","🪶","🦚","🦜","🦥","🦦","🦭","🦬","🦣","🦫","🦨","🦡","🪱","🦠","🧬","🩻","🩺","🩹","🧯","🪫","🛞","🛟","🪝","🪜","🧱","🪟","🪞","🛁","🪥","🧴","🧷","🪡","🧵","🪢","🛍️","🛒","🪙","🪪","🧳","🛎️","🪧","🪇","🪈","🪉","🪗","🪕","🪘","🪩","🛝","🛹","🛼","🪂","🛷","🪃","🪅","🪆","🛶","🛥️","🛳️","🛩️","🪂","🛸"];
 const shuffle=a=>[...a].sort(()=>Math.random()-.5),code=()=>crypto.randomBytes(4).toString("hex").slice(0,5).toUpperCase();
 const THEME_POOLS={
 "Clásica":SYMBOLS,
@@ -22,21 +22,26 @@ const THEME_EXTRAS={
 "Postres":["🍰","🧁","🍪","🍩","🍫","🍬","🍭","🍮","🍦","🍨","🍧","🎂"],
 "Espacio":["🌟","🌙","☀️","🛰️","👽","🛸","🌠","🌑","🌎","🌏"]
 };
-function themeSymbols(theme){const base=uniqueSymbols(THEME_POOLS[theme]||SYMBOLS),extras=uniqueSymbols([...(THEME_EXTRAS[theme]||[]),...SYMBOLS]);return uniqueSymbols([...base,...extras]).slice(0,57)}
-function projectiveDeck(symbols){
- const cards=[];
- // Plano proyectivo de orden 7: 57 cartas, 8 símbolos por carta.
- // Cada par de cartas comparte exactamente un símbolo.
- cards.push(symbols.slice(49,57));
- for(let m=0;m<7;m++)for(let b=0;b<7;b++){
-  const ids=[];for(let x=0;x<7;x++){const y=(m*x+b)%7;ids.push(y*7+x)}
-  ids.push(49+m);cards.push(ids.map(i=>symbols[i]));
+function themeSymbols(theme,order=7){const needed=order===9?91:57,base=uniqueSymbols(THEME_POOLS[theme]||SYMBOLS),extras=uniqueSymbols([...(THEME_EXTRAS[theme]||[]),...SYMBOLS]);return uniqueSymbols([...base,...extras,...SYMBOLS]).slice(0,needed)}
+function gf9(n){return [Math.floor(n/3),n%3]}
+function add9(a,b){const x=gf9(a),y=gf9(b);return ((x[0]+y[0])%3)*3+((x[1]+y[1])%3)}
+function mul9(a,b){const x=gf9(a),y=gf9(b),real=(x[0]*y[0]+2*x[1]*y[1])%3,imag=(x[0]*y[1]+x[1]*y[0])%3;return real*3+imag}
+function projectiveDeck(symbols,order=7){
+ const q=order,n=q*q,inf=n+q,cards=[];
+ if(q===7){
+  cards.push(symbols.slice(49,57));
+  for(let m=0;m<7;m++)for(let b=0;b<7;b++){const ids=[];for(let x=0;x<7;x++){const y=(m*x+b)%7;ids.push(y*7+x)}ids.push(49+m);cards.push(ids.map(i=>symbols[i]))}
+  for(let b=0;b<7;b++){const ids=[];for(let y=0;y<7;y++)ids.push(y*7+b);ids.push(56);cards.push(ids.map(i=>symbols[i]))}
+ }else{
+  // Plano proyectivo de orden 9 sobre GF(9): 91 cartas, 10 símbolos por carta.
+  cards.push(symbols.slice(n,inf+1));
+  for(let m=0;m<q;m++)for(let b=0;b<q;b++){const ids=[];for(let x=0;x<q;x++){const y=add9(mul9(m,x),b);ids.push(y*q+x)}ids.push(n+m);cards.push(ids.map(i=>symbols[i]))}
+  for(let b=0;b<q;b++){const ids=[];for(let y=0;y<q;y++)ids.push(y*q+b);ids.push(inf);cards.push(ids.map(i=>symbols[i]))}
  }
- for(let b=0;b<7;b++){const ids=[];for(let y=0;y<7;y++)ids.push(y*7+b);ids.push(56);cards.push(ids.map(i=>symbols[i]))}
  return shuffle(cards);
 }
 function drawCard(r){if(!r.deck||!r.deck.length)return [...r.center];if(r.deckIndex>=r.deck.length){r.deck=shuffle(r.deck);r.deckIndex=0}return [...r.deck[r.deckIndex++]]}
-function state(r,viewerId){return {code:r.code,status:r.status,hostId:r.hostId,maxPlayers:r.maxPlayers,theme:r.theme,visibility:r.visibility,timeLimitSeconds:r.timeLimitSeconds||0,remainingSeconds:r.remainingSeconds??null,showOpponentCards:r.showOpponentCards!==false,showOpponentCounts:r.showOpponentCounts!==false,chat:r.chat||[],players:[...r.players.values()].map(p=>({...p,hand:(p.id===viewerId||r.showOpponentCards!==false)?p.hand:[]})),center:r.center,remaining:r.remaining}}
+function state(r,viewerId){return {code:r.code,status:r.status,hostId:r.hostId,maxPlayers:r.maxPlayers,theme:r.theme,deckOrder:r.deckOrder||7,visibility:r.visibility,timeLimitSeconds:r.timeLimitSeconds||0,remainingSeconds:r.remainingSeconds??null,showOpponentCards:r.showOpponentCards!==false,showOpponentCounts:r.showOpponentCounts!==false,chat:r.chat||[],players:[...r.players.values()].map(p=>({...p,hand:(p.id===viewerId||r.showOpponentCards!==false)?p.hand:[]})),center:r.center,remaining:r.remaining}}
 function broadcast(r){for(const id of r.players.keys())io.to(id).emit("state",state(r,id));updatePublicRooms()}
 function updatePublicRooms(){io.emit("publicRooms",[...rooms.values()].filter(r=>r.visibility==="public"&&r.status!=="finished").map(r=>({code:r.code,status:r.status,theme:r.theme,maxPlayers:r.maxPlayers,players:[...r.players.values()].filter(p=>p.role!=="spectator").length})).sort((a,b)=>(a.status==="lobby"?0:1)-(b.status==="lobby"?0:1)))}
 function notice(s,message){s.emit("notice",message)}
@@ -47,13 +52,13 @@ io.on("connection",s=>{
 s.on("chatSend",text=>chatMessage(rooms.get(s.data.room),s,text));
 s.on("getChatHistory",()=>{const r=rooms.get(s.data.room);if(r)s.emit("chatHistory",r.chat||[])});
 s.on("getPublicRooms",()=>s.emit("publicRooms",[...rooms.values()].filter(r=>r.visibility==="public"&&r.status!=="finished").map(r=>({code:r.code,status:r.status,theme:r.theme,maxPlayers:r.maxPlayers,players:[...r.players.values()].filter(p=>p.role!=="spectator").length})).sort((a,b)=>(a.status==="lobby"?0:1)-(b.status==="lobby"?0:1))));
-s.on("create",d=>{const name=String(d.name||"").trim().slice(0,16);if(!name)return notice(s,"Ingresá un nombre de hasta 16 caracteres.");let c=code();while(rooms.has(c))c=code();const r={code:c,hostId:s.id,status:"lobby",maxPlayers:6,theme:"Clásica",visibility:d.visibility==="private"?"private":"public",showOpponentCards:true,showOpponentCounts:true,timeLimitSeconds:0,remainingSeconds:null,chat:[],players:new Map(),center:[],remaining:0,timer:null};r.players.set(s.id,{id:s.id,name,role:"host",ready:true,cards:0,errors:0,streak:0,maxStreak:0,hand:[]});rooms.set(c,r);s.data.room=c;s.join(c);s.emit("joined",{code:c,role:"host"});s.emit("chatHistory",r.chat);broadcast(r)});
+s.on("create",d=>{const name=String(d.name||"").trim().slice(0,16);if(!name)return notice(s,"Ingresá un nombre de hasta 16 caracteres.");let c=code();while(rooms.has(c))c=code();const r={code:c,hostId:s.id,status:"lobby",maxPlayers:6,theme:"Clásica",deckOrder:7,visibility:d.visibility==="private"?"private":"public",showOpponentCards:true,showOpponentCounts:true,timeLimitSeconds:0,remainingSeconds:null,chat:[],players:new Map(),center:[],remaining:0,timer:null};r.players.set(s.id,{id:s.id,name,role:"host",ready:true,cards:0,errors:0,streak:0,maxStreak:0,hand:[]});rooms.set(c,r);s.data.room=c;s.join(c);s.emit("joined",{code:c,role:"host"});s.emit("chatHistory",r.chat);broadcast(r)});
 s.on("join",d=>{const r=rooms.get(String(d.code||"").toUpperCase()),name=String(d.name||"").trim().slice(0,16);if(!r)return notice(s,"Código inválido.");if(!name)return notice(s,"Ingresá tu nombre.");const count=[...r.players.values()].filter(p=>p.role!=="spectator").length,role=r.status==="playing"?"spectator":"player";if(role==="player"&&count>=r.maxPlayers)return notice(s,"La sala está llena.");if(r.players.size>=16)return notice(s,"La sala alcanzó su máximo de conexiones.");r.players.set(s.id,{id:s.id,name,role,ready:role==="spectator",cards:10,errors:0,streak:0,maxStreak:0,hand:[]});s.data.room=r.code;s.join(r.code);s.emit("joined",{code:r.code,role});s.emit("chatHistory",r.chat);broadcast(r)});
 s.on("ready",value=>{const r=rooms.get(s.data.room),p=r?.players.get(s.id);if(!r||r.status!=="lobby"||!p||p.role==="host"||p.role==="spectator")return;p.ready=!!value;broadcast(r)});
-s.on("settings",d=>{const r=rooms.get(s.data.room);if(!r||s.id!==r.hostId||r.status!=="lobby")return;const actual=[...r.players.values()].filter(p=>p.role!=="spectator").length;r.maxPlayers=Math.max(actual,Math.min(6,Math.max(2,Number(d.maxPlayers)||6)));r.theme=THEME_POOLS[d.theme]?d.theme:r.theme;r.visibility=d.visibility==="private"?"private":"public";r.showOpponentCards=d.showOpponentCards!==false;r.showOpponentCounts=d.showOpponentCounts!==false;const tl=Number(d.timeLimitSeconds);r.timeLimitSeconds=[0,30,60,180,300,600].includes(tl)?tl:0;broadcast(r)});
+s.on("settings",d=>{const r=rooms.get(s.data.room);if(!r||s.id!==r.hostId||r.status!=="lobby")return;const actual=[...r.players.values()].filter(p=>p.role!=="spectator").length;r.maxPlayers=Math.max(actual,Math.min(6,Math.max(2,Number(d.maxPlayers)||6)));r.theme=THEME_POOLS[d.theme]?d.theme:r.theme;r.deckOrder=Number(d.deckOrder)===9?9:7;r.visibility=d.visibility==="private"?"private":"public";r.showOpponentCards=d.showOpponentCards!==false;r.showOpponentCounts=d.showOpponentCounts!==false;const tl=Number(d.timeLimitSeconds);r.timeLimitSeconds=[0,30,60,180,300,600].includes(tl)?tl:0;broadcast(r)});
 s.on("kick",id=>{const r=rooms.get(s.data.room);if(!r||s.id!==r.hostId||r.status!=="lobby"||id===r.hostId)return;const p=r.players.get(id);if(!p||p.role==="spectator")return;const target=io.sockets.sockets.get(id);if(target){notice(target,"El anfitrión te expulsó de la sala.");target.leave(r.code);target.data.room=null;target.emit("kicked","El anfitrión te expulsó de la sala.");}r.players.delete(id);broadcast(r)});
 s.on("returnLobby",()=>{const r=rooms.get(s.data.room);if(!r||s.id!==r.hostId||r.status!=="finished")return;r.status="lobby";r.result=null;r.remainingSeconds=null;for(const p of r.players.values()){if(p.role==="player")p.ready=false;p.cards=0;p.errors=0;p.streak=0;p.maxStreak=0;p.hand=[]}io.to(r.code).emit("returnedLobby");broadcast(r)});
-s.on("start",()=>{const r=rooms.get(s.data.room);if(!r||s.id!==r.hostId||!(r.status==="lobby"||r.status==="finished"))return;const ps=[...r.players.values()].filter(p=>p.role!=="spectator");if(ps.length<2)return notice(s,"Necesitás al menos dos jugadores.");const notReady=ps.filter(p=>p.id!==r.hostId&&!p.ready);if(notReady.length)return notice(s,"Todavía faltan jugadores por marcarse listos: "+notReady.map(p=>p.name).join(", ")+".");r.status="playing";const symbols=themeSymbols(r.theme);r.deck=projectiveDeck(symbols);r.deckIndex=0;r.center=drawCard(r);for(const p of ps){p.cards=10;p.errors=0;p.streak=0;p.maxStreak=0;p.hand=drawCard(r)}if(r.timer)clearInterval(r.timer);r.remainingSeconds=r.timeLimitSeconds||null;if(r.timeLimitSeconds>0)r.timer=setInterval(()=>{if(r.status!=="playing"){clearInterval(r.timer);return}r.remainingSeconds=Math.max(0,(r.remainingSeconds||0)-1);if(r.remainingSeconds<=0)finish(r,"Se terminó el tiempo.");else broadcast(r)},1000);broadcast(r)});
+s.on("start",()=>{const r=rooms.get(s.data.room);if(!r||s.id!==r.hostId||!(r.status==="lobby"||r.status==="finished"))return;const ps=[...r.players.values()].filter(p=>p.role!=="spectator");if(ps.length<2)return notice(s,"Necesitás al menos dos jugadores.");const notReady=ps.filter(p=>p.id!==r.hostId&&!p.ready);if(notReady.length)return notice(s,"Todavía faltan jugadores por marcarse listos: "+notReady.map(p=>p.name).join(", ")+".");r.status="playing";const symbols=themeSymbols(r.theme,r.deckOrder);r.deck=projectiveDeck(symbols,r.deckOrder);r.deckIndex=0;r.center=drawCard(r);for(const p of ps){p.cards=10;p.errors=0;p.streak=0;p.maxStreak=0;p.hand=drawCard(r)}if(r.timer)clearInterval(r.timer);r.remainingSeconds=r.timeLimitSeconds||null;if(r.timeLimitSeconds>0)r.timer=setInterval(()=>{if(r.status!=="playing"){clearInterval(r.timer);return}r.remainingSeconds=Math.max(0,(r.remainingSeconds||0)-1);if(r.remainingSeconds<=0)finish(r,"Se terminó el tiempo.");else broadcast(r)},1000);broadcast(r)});
 s.on("play",sym=>{const r=rooms.get(s.data.room),p=r?.players.get(s.id);if(!r||r.status!=="playing"||!p||p.role==="spectator")return;const clicked=normSymbol(sym),matches=p.hand.filter(x=>r.center.some(c=>normSymbol(c)===normSymbol(x)));const isInHand=p.hand.some(x=>normSymbol(x)===clicked);if(!isInHand)return;const isCorrect=matches.length===1&&normSymbol(matches[0])===clicked&&r.center.some(x=>normSymbol(x)===clicked);if(!isCorrect){p.errors++;p.cards++;p.streak=0;broadcast(r);return}p.cards=Math.max(0,p.cards-1);p.streak++;p.maxStreak=Math.max(p.maxStreak,p.streak);r.center=[...p.hand];if(!p.cards){finish(r,p.name+" ganó.");return}p.hand=drawCard(r);broadcast(r)});
 s.on("leave",()=>leave(s));s.on("disconnect",()=>leave(s))
 });
