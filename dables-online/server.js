@@ -1,7 +1,7 @@
 const express=require("express"),http=require("http"),{Server}=require("socket.io"),crypto=require("crypto"),path=require("path");
 const app=express(),httpServer=http.createServer(app),io=new Server(httpServer);
 app.use(express.static(path.join(__dirname,"public")));app.get("/health",(_,r)=>r.json({ok:true,game:"Dables"}));
-const rooms=new Map(),MAX=6,SYMBOLS=["⭐","🌙","☀️","🌈","⚡","❄️","🔥","🍀","👑","🎈","🎯","🎲","🧩","🎧","⌨️","🖱️","💻","📱","🎮","🔊","🎙️","🍓","🍌","🍍","🍋","🍒","🥦","🥕","🍉","🐱","🐶","🦊","🐸","🦋","🐝","🐢","🐧","🌍","🪐","🚀","🌌","☄️","🌕","🌲","🌻","🍄","☂️","🔑","💎","🧸"];
+const rooms=new Map(),MAX=6,SYMBOLS=["⭐","🌙","☀️","🌈","⚡","❄️","🔥","🍀","👑","🎈","🎯","🎲","🧩","🎧","⌨️","🖱️","💻","📱","🎮","🔊","🎙️","🍓","🍌","🍍","🍋","🍒","🥦","🥕","🍉","🐱","🐶","🦊","🐸","🦋","🐝","🐢","🐧","🌍","🪐","🚀","🌌","☄️","🌕","🌲","🌻","🍄","☂️","🔑","💎","🧸","🪁","🎨","🎸","🎹","🥁","🏀","⚽"];
 const shuffle=a=>[...a].sort(()=>Math.random()-.5),code=()=>crypto.randomBytes(4).toString("hex").slice(0,5).toUpperCase();
 const THEME_POOLS={
 "Clásica":SYMBOLS,
@@ -22,15 +22,17 @@ const THEME_EXTRAS={
 "Postres":["🍰","🧁","🍪","🍩","🍫","🍬","🍭","🍮","🍦","🍨","🍧","🎂"],
 "Espacio":["🌟","🌙","☀️","🛰️","👽","🛸","🌠","🌑","🌎","🌏"]
 };
-function themeSymbols(theme){const base=uniqueSymbols(THEME_POOLS[theme]||SYMBOLS),extras=uniqueSymbols([...(THEME_EXTRAS[theme]||[]),...SYMBOLS]);return uniqueSymbols([...base,...extras]).slice(0,31)}
+function themeSymbols(theme){const base=uniqueSymbols(THEME_POOLS[theme]||SYMBOLS),extras=uniqueSymbols([...(THEME_EXTRAS[theme]||[]),...SYMBOLS]);return uniqueSymbols([...base,...extras]).slice(0,57)}
 function projectiveDeck(symbols){
- const pts=Array.from({length:31},(_,i)=>i),cards=[];
- cards.push(pts.slice(25,31).map(i=>symbols[i]));
- for(let m=0;m<5;m++)for(let b=0;b<5;b++){
-  const ids=[];for(let x=0;x<5;x++){const y=(m*x+b)%5;ids.push(y*5+x)}
-  ids.push(25+m);cards.push(ids.map(i=>symbols[i]));
+ const cards=[];
+ // Plano proyectivo de orden 7: 57 cartas, 8 símbolos por carta.
+ // Cada par de cartas comparte exactamente un símbolo.
+ cards.push(symbols.slice(49,57));
+ for(let m=0;m<7;m++)for(let b=0;b<7;b++){
+  const ids=[];for(let x=0;x<7;x++){const y=(m*x+b)%7;ids.push(y*7+x)}
+  ids.push(49+m);cards.push(ids.map(i=>symbols[i]));
  }
- for(let b=0;b<5;b++){const ids=[];for(let y=0;y<5;y++)ids.push(y*5+b);ids.push(30);cards.push(ids.map(i=>symbols[i]))}
+ for(let b=0;b<7;b++){const ids=[];for(let y=0;y<7;y++)ids.push(y*7+b);ids.push(56);cards.push(ids.map(i=>symbols[i]))}
  return shuffle(cards);
 }
 function drawCard(r){if(!r.deck||!r.deck.length)return [...r.center];if(r.deckIndex>=r.deck.length){r.deck=shuffle(r.deck);r.deckIndex=0}return [...r.deck[r.deckIndex++]]}
